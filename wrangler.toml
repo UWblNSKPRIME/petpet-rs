@@ -4,7 +4,3 @@ compatibility_date = "2025-01-01"
 
 [build]
 command = "worker-build --release"
-
-[vars]
-# Optional: set BOT_TOKEN via `npx wrangler secret put BOT_TOKEN` or leave empty to use public Discord lookup
-BOT_TOKEN = ""

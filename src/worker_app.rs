@@ -10,11 +10,17 @@ const HTTP_USER_AGENT: &str = "PetPet (https://github.com/UWblNSKPRIME/petpet-rs
 #[derive(Deserialize)]
 struct DiscordUserResponse {
     avatar: Option<String>,
+    discriminator: Option<String>,
 }
 
 #[derive(Deserialize)]
 struct JapiWrapper {
     data: Option<DiscordUserResponse>,
+}
+
+enum AvatarRef {
+    Custom { id: String },
+    Default { index: u32 },
 }
 
 fn soft_error_response(details: &str) -> Result<Response> {
@@ -75,7 +81,23 @@ fn verify_discord_user_id(raw_param: &str) -> (String, Option<&'static str>) {
     }
 }
 
-async fn fetch_avatar_id(user_id: &str, bot_token: Option<String>) -> std::result::Result<String, String> {
+fn default_avatar_index(user_id: &str, discriminator: Option<&str>) -> u32 {
+    if let Some(disc) = discriminator {
+        if let Ok(d) = disc.parse::<u32>() {
+            if d != 0 {
+                return d % 5;
+            }
+        }
+    }
+    // New username system without discriminators (#0) uses (user_id >> 22) % 6
+    if let Ok(id) = user_id.parse::<u64>() {
+        ((id >> 22) % 6) as u32
+    } else {
+        0
+    }
+}
+
+async fn fetch_avatar_ref(user_id: &str, bot_token: Option<String>) -> std::result::Result<AvatarRef, String> {
     if let Some(token) = bot_token.filter(|t| !t.is_empty() && t != "your bot token") {
         let url = format!("{}/users/{}", BASE_API_URL, user_id);
         let headers = Headers::new();
@@ -85,12 +107,20 @@ async fn fetch_avatar_id(user_id: &str, bot_token: Option<String>) -> std::resul
 
         if let Ok(req) = Request::new_with_init(&url, RequestInit::new().with_method(Method::Get).with_headers(headers)) {
             if let Ok(mut resp) = Fetch::Request(req).send().await {
-                if resp.status_code() == 200 {
+                let status = resp.status_code();
+                if status == 200 {
                     if let Ok(text) = resp.text().await {
                         if let Ok(user) = serde_json::from_str::<DiscordUserResponse>(&text) {
-                            return user.avatar.ok_or_else(|| "get avatar error: not exists".to_string());
+                            if let Some(avatar) = user.avatar {
+                                return Ok(AvatarRef::Custom { id: avatar });
+                            } else {
+                                let idx = default_avatar_index(user_id, user.discriminator.as_deref());
+                                return Ok(AvatarRef::Default { index: idx });
+                            }
                         }
                     }
+                } else if status == 404 {
+                    return Err("User not found".to_string());
                 }
             }
         }
@@ -102,29 +132,40 @@ async fn fetch_avatar_id(user_id: &str, bot_token: Option<String>) -> std::resul
     let _ = headers.set("User-Agent", HTTP_USER_AGENT);
     let _ = headers.set("Accept", "application/json");
 
-    let req = Request::new_with_init(
-        &fallback_url,
-        RequestInit::new().with_method(Method::Get).with_headers(headers),
-    )
-    .map_err(|e| e.to_string())?;
-
-    let mut resp = Fetch::Request(req).send().await.map_err(|e| e.to_string())?;
-    let body = resp.text().await.map_err(|e| e.to_string())?;
-
-    if resp.status_code() != 200 {
-        return Err(format!("error: {}", body));
+    if let Ok(req) = Request::new_with_init(&fallback_url, RequestInit::new().with_method(Method::Get).with_headers(headers)) {
+        if let Ok(mut resp) = Fetch::Request(req).send().await {
+            if resp.status_code() == 200 {
+                if let Ok(body) = resp.text().await {
+                    if let Ok(wrapper) = serde_json::from_str::<JapiWrapper>(&body) {
+                        if let Some(data) = wrapper.data {
+                            if let Some(avatar) = data.avatar {
+                                return Ok(AvatarRef::Custom { id: avatar });
+                            } else {
+                                let idx = default_avatar_index(user_id, data.discriminator.as_deref());
+                                return Ok(AvatarRef::Default { index: idx });
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    let wrapper: JapiWrapper = serde_json::from_str(&body).map_err(|e| e.to_string())?;
-    wrapper
-        .data
-        .and_then(|d| d.avatar)
-        .ok_or_else(|| "get avatar error: not exists".to_string())
+    // If both lookups fail or user has no custom avatar, fall back to Discord's official default avatar
+    let idx = default_avatar_index(user_id, None);
+    Ok(AvatarRef::Default { index: idx })
 }
 
-async fn fetch_avatar_bytes(user_id: &str, avatar_id: &str) -> std::result::Result<Vec<u8>, String> {
-    // Download 256x256 lossless PNG from Discord CDN (2x supersampling for 128x128 output, fast on CF Workers)
-    let url = format!("{}/avatars/{}/{}.png?size=256", BASE_CDN_URL, user_id, avatar_id);
+async fn fetch_avatar_bytes(user_id: &str, avatar_ref: &AvatarRef) -> std::result::Result<Vec<u8>, String> {
+    let url = match avatar_ref {
+        AvatarRef::Custom { id } => {
+            format!("{}/avatars/{}/{}.png?size=256", BASE_CDN_URL, user_id, id)
+        }
+        AvatarRef::Default { index } => {
+            format!("{}/embed/avatars/{}.png?size=256", BASE_CDN_URL, index)
+        }
+    };
+
     let headers = Headers::new();
     let _ = headers.set("User-Agent", HTTP_USER_AGENT);
     let _ = headers.set("Accept", "image/png");
@@ -185,13 +226,18 @@ pub async fn main(mut req: Request, env: Env, ctx: Context) -> Result<Response> 
 
         let disable_cache = query_pairs.get("no-cache").map(String::as_str) == Some("true");
 
-        let bot_token = env.var("BOT_TOKEN").ok().map(|v| v.to_string());
-        let avatar_id = match fetch_avatar_id(&user_id, bot_token).await {
-            Ok(id) => id,
+        let bot_token = env.secret("BOT_TOKEN").or_else(|_| env.var("BOT_TOKEN")).ok().map(|v| v.to_string());
+        let avatar_ref = match fetch_avatar_ref(&user_id, bot_token).await {
+            Ok(r) => r,
             Err(err) => return soft_error_response(parse_discord_error(&err)),
         };
 
-        // Check Cloudflare Edge Cache and replace old cached animation if avatar_id changed
+        let avatar_tag = match &avatar_ref {
+            AvatarRef::Custom { id } => id.clone(),
+            AvatarRef::Default { index } => format!("default_{}", index),
+        };
+
+        // Check Cloudflare Edge Cache and replace old cached animation if avatar changed
         let cache = Cache::default();
         let meta_key = format!("https://petpet-cache.internal/avatar-id/{}", user_id);
         let cache_key = format!("https://petpet-cache.internal/webp/{}/{}", user_id, delay);
@@ -199,7 +245,7 @@ pub async fn main(mut req: Request, env: Env, ctx: Context) -> Result<Response> 
         let mut avatar_changed = true;
         if let Ok(Some(mut meta_resp)) = cache.get(&meta_key, false).await {
             if let Ok(cached_id) = meta_resp.text().await {
-                if cached_id.trim() == avatar_id {
+                if cached_id.trim() == avatar_tag {
                     avatar_changed = false;
                 }
             }
@@ -213,7 +259,7 @@ pub async fn main(mut req: Request, env: Env, ctx: Context) -> Result<Response> 
             }
         }
 
-        let avatar_bytes = match fetch_avatar_bytes(&user_id, &avatar_id).await {
+        let avatar_bytes = match fetch_avatar_bytes(&user_id, &avatar_ref).await {
             Ok(b) => b,
             Err(err) => return soft_error_response(parse_discord_error(&err)),
         };
@@ -232,7 +278,7 @@ pub async fn main(mut req: Request, env: Env, ctx: Context) -> Result<Response> 
         if !disable_cache {
             if let (Ok(resp_to_cache), Ok(meta_resp)) = (
                 webp_response(webp_buf.clone(), false),
-                Response::ok(avatar_id),
+                Response::ok(avatar_tag),
             ) {
                 let meta_headers = Headers::new();
                 let _ = meta_headers.set("Cache-Control", "public, max-age=86400");
