@@ -1,0 +1,7 @@
+/target
+/build
+/.wrangler
+/cache
+config.yaml
+.env
+*.log

@@ -1,0 +1,119 @@
+server:
+  # The address where the server will run.
+  # `HOST` in env
+  host: "localhost"
+  # The port where the server will run.
+  # `PORT` in env. Range 0-65535 (uint16). Default is 3000
+  port: 3000
+  # Timeout for graceful shutdown
+  # `SHUTDOWN_TIMEOUT` in env. Range uint (https://pkg.go.dev/builtin#uint). Default is 5s
+  shutdownTimeout: "5s"
+  # Timeout for writing responses.
+  # `WRITE_TIMEOUT` in env. Default is 15s
+  writeTimeout: 15s
+  # Timeout for reading requests.
+  # `READ_TIMEOUT` in env. Default is 15s
+  readTimeout: 15s
+  # Timeout for idle connections.
+  # `IDLE_TIMEOUT` in env. Default is 60s
+  idleTimeout: 60s
+  # Endpoint like /ping for load balancers or uptime bots
+  # Read more: https://go-chi.io/#/pages/middleware?id=heartbeat
+  heartbeat:
+    # `HEARTBEAT_ENABLE` in env. Default is false
+    enable: false
+    # `HEARTBEAT_PATH` in env. Default is `/ping`
+    path: "/ping"
+  # Throttle limits the number of requests that can be processed simultaneously
+  # and establishes a queue of requests
+  throttle:
+    # `THROTTLE_ENABLE` in env. Default is false
+    enable: false
+    # Number of requests that can be processed simultaneously.
+    # The optimal value is calculated by the formula: number of processor threads * 2.
+    # `THROTTLE_LIMIT` in env. Required parameter!
+    limit: 2
+    # Queue size for requests.
+    # `THROTTLE_BACKLOG` in env. Default is 3
+    backlog: 3
+    # The amount of time requests remain in the queue.
+    # `THROTTLE_BACKLOG_TIMEOUT` in env. Default is 5s
+    backlogTimeout: "5s"
+  # TLS settings
+  tls:
+    # Enables HTTPS listener.
+    # `TLS_ENABLE` in env. Default is false
+    enable: false
+    # Path to TLS certificate file (PEM). Required when TLS is enabled.
+    # `TLS_CERT_FILE` in env.
+    certFile: "./certs/server.crt"
+    # Path to TLS private key file (PEM). Required when TLS is enabled.
+    # `TLS_KEY_FILE` in env.
+    keyFile: "./certs/server.key"
+discord:
+  # Enables Discord avatar endpoints: /ds/{user_id} and /ds/{user_id}.gif
+  # `DISCORD_ENABLE` in env. Default is true
+  enable: true
+  # Secret token for Discord bot.
+  # Required only when Discord is enabled.
+  # You can create a bot on the Discord Developer Portal:
+  # https://discord.com/developers/applications
+  # `BOT_TOKEN` in env.
+  botToken: "your bot token"
+# The cache is used to store previously generated GIFs instead of re-generating them.
+# Disabled by default
+cache:
+  # Cache storage location. Must be either `fs` (on disk), `memory` (in memory), `s3` (Amazon S3 or compatible) or nothing.
+  # `CACHE_STORAGE` in env. Default is nothing
+  storage: "fs"
+  # Memory cache configuration
+  memory:
+    # Cache capacity (number of items to store in memory).
+    # `CACHE_MEMORY_CAPACITY` in env. Range uint (https://pkg.go.dev/builtin#uint). Default is 100
+    capacity: 100
+  # Filesystem cache configuration
+  fs:
+    # Directory where the cache will be stored.
+    # `CACHE_FS_PATH` in env. Default is `./cache`
+    path: "./cache"
+    # TTL in time.Duraction for filesystem cache items.
+    # If omitted or set to 0, TTL cleanup is disabled.
+    # `CACHE_FS_TTL` in env. Optional parameter.
+    ttl: "0s"
+  # S3 cache configuration
+  s3:
+    # S3 bucket name (required for S3 storage).
+    # `CACHE_S3_BUCKET` in env.
+    bucket: "petpet-cache"
+    # S3 endpoint URL.
+    # Use this for custom S3-compatible services like MinIO or for specific AWS endpoints.
+    # Leave empty to use the default AWS S3 endpoint.
+    # `CACHE_S3_ENDPOINT` in env.
+    endpoint: "http://localhost:9000"
+    # AWS region.
+    # `CACHE_S3_REGION` in env. Default is "us-east-1"
+    region: "us-east-1"
+    # AWS access key.
+    # If provided along with secretKey, will be used for authentication.
+    # If not provided, will use the default AWS credential chain.
+    # `CACHE_S3_ACCESS_KEY` in env.
+    accessKey: ""
+    # AWS secret key.
+    # If provided along with accessKey, will be used for authentication.
+    # If not provided, will use the default AWS credential chain.
+    # `CACHE_S3_SECRET_KEY` in env.
+    secretKey: ""
+logger:
+  # Logger format preset. Must be either `prod`, `dev`, `gcp` (GCP Cloud Logging format)
+  # `LOGGER_PRESET` in env.
+  preset: "prod"
+customUpload:
+  # Enables custom image upload endpoint: /custom
+  # `CUSTOM_UPLOAD_ENABLE` in env. Default is true
+  enable: true
+  # Maximum upload size in bytes.
+  # `CUSTOM_MAX_UPLOAD_SIZE` in env. Default is 5242880 (5MB)
+  maxUploadSize: 5242880
+  # Maximum image size in pixels.
+  # `CUSTOM_MAX_PIXEL_COUNT` in env. Default is 1000000 (1 MP)
+  maxPixelCount: 1000000
