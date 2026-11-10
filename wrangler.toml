@@ -3,7 +3,7 @@ main = "build/worker/shim.mjs"
 compatibility_date = "2025-01-01"
 
 [build]
-command = "cargo install -q worker-build && worker-build --release"
+command = "worker-build --release"
 
 [vars]
 # Optional: set BOT_TOKEN via `npx wrangler secret put BOT_TOKEN` or leave empty to use public Discord lookup

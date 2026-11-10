@@ -3,9 +3,9 @@
 ![Rust](https://img.shields.io/badge/Rust-1.93%2B-orange?style=for-the-badge&logo=rust&logoColor=white&labelColor=1A222E&color=242B36)
 ![GitHub License](https://img.shields.io/github/license/UWblNSKPRIME/petpet-rs?style=for-the-badge&labelColor=1A222E&color=242B36)
 ![GitHub repo size](https://img.shields.io/github/repo-size/UWblNSKPRIME/petpet-rs?style=for-the-badge&logo=github&logoColor=white&labelColor=1A222E&color=242B36&cacheSeconds=0)
-![Cloudflare Workers](https://img.shields.io/badge/Cloudflare_Workers-Free_Tier-F38020?style=for-the-badge&logo=cloudflare&logoColor=white&labelColor=1A222E&color=242B36)
+![Cloudflare Workers](https://img.shields.io/badge/Cloudflare_Workers-deployed-F38020?style=for-the-badge&logo=cloudflare&logoColor=white&labelColor=1A222E&color=242B36)
 
-A web service for generating `128x128` Animated WebP (`24-bit + Alpha`) petpet animations based on a Discord user's avatar, written in pure Rust.
+A web service for generating `128x128` Animated WebP petpet animations based on a Discord user's avatar, written in pure Rust.
 
 When a user updates their avatar in Discord, the service automatically detects the new avatar hash and replaces the old cached file.
 
@@ -15,7 +15,7 @@ When a user updates their avatar in Discord, the service automatically detects t
 
 <kbd>GET</kbd> `/discord/{user_id}` or `/ds/{user_id}`
 
-The response is a `128x128` Animated WebP (`24-bit RGB + 8-bit Alpha`). You can also append `.webp` to the `{user_id}` path segment, e.g. `/discord/{user_id}.webp` or `/ds/{user_id}.webp`.
+The response is a `128x128` Animated WebP. You can also append `.webp` to the `{user_id}` path segment, e.g. `/discord/{user_id}.webp` or `/ds/{user_id}.webp`.
 
 #### Path parameters
 
@@ -42,9 +42,9 @@ The upload is limited to 5MB and a maximum of 1 MP (you can reconfigure it).
 
 ## Getting started
 
-### Cloudflare Workers (Free Tier)
+### Cloudflare Workers
 
-You can deploy `petpet-rs` directly to Cloudflare Workers (Free Tier) using [`wrangler.toml`](wrangler.toml):
+You can deploy `petpet-rs` directly to Cloudflare Workers using [`wrangler.toml`](wrangler.toml):
 
 ```bash
 npx wrangler login
